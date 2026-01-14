@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # 1. Reverse Proxy (Traefik)
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - web-gateway
+
+  # 2. Database (PostgreSQL)
+  postgres:
+    image: postgres:15-alpine
+    container_name: database
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: multitenant
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+
+  # 3. Main Application Backend
+  backend:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    container_name: backend-api
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - traefik
+    environment:
+      # Connection String
+      DB_DSN: "host=postgres user=postgres password=password dbname=multitenant port=5432 sslmode=disable TimeZone=Asia/Jakarta"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Backend needs to control Docker
+    networks:
+      - web-gateway   # To communicate with Traefik
+      - backend-net   # To communicate with DB
+    labels:
+      - "traefik.enable=true"
+      # Route for API only
+      - "traefik.http.routers.backend-api.rule=Host(`api.localhost`) || PathPrefix(`/api`)"
+      - "traefik.http.services.backend-api.loadbalancer.server.port=8080"
+      - "traefik.docker.network=traefik-net"
+
+  # 4. Frontend (React + Nginx)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: frontend-ui
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - traefik
+    networks:
+      - web-gateway
+    labels:
+      - "traefik.enable=true"
+      # Route for Frontend (Root domain)
+      - "traefik.http.routers.frontend-ui.rule=Host(`localhost`)"
+      - "traefik.http.services.frontend-ui.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik-net"
+
+volumes:
+  pg_data:
+
+networks:
+  web-gateway:
+    name: traefik-net
+    driver: bridge
+  backend-net:
+    driver: bridge

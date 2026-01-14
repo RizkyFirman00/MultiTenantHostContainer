@@ -44,6 +44,7 @@ services:
     environment:
       # Connection String
       DB_DSN: "host=postgres user=postgres password=password dbname=multitenant port=5432 sslmode=disable TimeZone=Asia/Jakarta"
+      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}" # Default to localhost if not set
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Backend needs to control Docker
     networks:
@@ -51,8 +52,8 @@ services:
       - backend-net   # To communicate with DB
     labels:
       - "traefik.enable=true"
-      # Route for API only
-      - "traefik.http.routers.backend-api.rule=Host(`api.localhost`) || PathPrefix(`/api`)"
+      # Route for API (Matches /api prefix)
+      - "traefik.http.routers.backend-api.rule=PathPrefix(`/api`)"
       - "traefik.http.services.backend-api.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik-net"
 
@@ -70,8 +71,8 @@ services:
       - web-gateway
     labels:
       - "traefik.enable=true"
-      # Route for Frontend (Root domain)
-      - "traefik.http.routers.frontend-ui.rule=Host(`localhost`)"
+      # Route for Frontend (Catch-all for root)
+      - "traefik.http.routers.frontend-ui.rule=PathPrefix(`/`)"
       - "traefik.http.services.frontend-ui.loadbalancer.server.port=80"
       - "traefik.docker.network=traefik-net"
 

@@ -19,7 +19,7 @@ interface Project {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [user, setUser] = useState<{username: string} | null>(null);
+  const [user, setUser] = useState<{username: string; base_domain?: string} | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null); // For start/stop/deploy spinner
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -219,12 +219,12 @@ const Dashboard: React.FC = () => {
                                     <div className="flex items-center text-muted-foreground p-2 rounded-md bg-secondary/50">
                                         <Globe className="h-4 w-4 mr-2 text-primary" />
                                         <a 
-                                            href={`http://${project.Subdomain}.localhost`} 
+                                            href={`http://${project.Subdomain}.${user?.base_domain || 'localhost'}`} 
                                             target="_blank" 
                                             rel="noreferrer"
                                             className="hover:underline hover:text-primary transition-colors truncate"
                                         >
-                                            {project.Subdomain}.localhost
+                                            {project.Subdomain}.{user?.base_domain || 'localhost'}
                                         </a>
                                     </div>
                                 </div>
@@ -336,7 +336,7 @@ const Dashboard: React.FC = () => {
                                         required
                                       />
                                       <div className="h-10 px-3 flex items-center bg-muted border border-l-0 border-input rounded-r-md text-sm text-muted-foreground font-mono">
-                                          .localhost
+                                          .{user?.base_domain || 'localhost'}
                                       </div>
                                   </div>
                               </div>

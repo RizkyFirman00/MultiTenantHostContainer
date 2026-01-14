@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/damantine/multi-tenant-hosting/internal/core/services"
 	"github.com/gin-gonic/gin"
@@ -59,8 +60,14 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	// Idealnya fetch user detail dari DB via AuthService.
 	// Untuk sekarang kembalikan ID saja.
+	baseDomain := os.Getenv("BASE_DOMAIN")
+	if baseDomain == "" {
+		baseDomain = "localhost"
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"id": userID,
-		"username": "User (ID: " + userID.(interface{ String() string }).String()[:8] + ")", // Placeholder name
+		"id":          userID,
+		"username":    "User (ID: " + userID.(interface{ String() string }).String()[:8] + ")", // Placeholder name
+		"base_domain": baseDomain,
 	})
 }

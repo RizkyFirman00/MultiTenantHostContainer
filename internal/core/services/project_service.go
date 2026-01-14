@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/damantine/multi-tenant-hosting/internal/core/domain"
@@ -31,11 +32,17 @@ func (s *ProjectService) DeployProject(ctx context.Context, projectID uuid.UUID)
 	}
 
 	// 2. Siapkan config container
+	// Ambil Base Domain dari environment variables (default: localhost)
+	baseDomain := os.Getenv("BASE_DOMAIN")
+	if baseDomain == "" {
+		baseDomain = "localhost"
+	}
+
 	// Format Label Traefik v2/v3 untuk subdomain routing
 	// "traefik.http.routers.my-app.rule=Host(`subdomain.domain.com`)"
 	labels := map[string]string{
 		"traefik.enable": "true",
-		fmt.Sprintf("traefik.http.routers.%s.rule", project.Subdomain): fmt.Sprintf("Host(`%s.localhost`)", project.Subdomain), // Pakai localhost utk dev
+		fmt.Sprintf("traefik.http.routers.%s.rule", project.Subdomain): fmt.Sprintf("Host(`%s.%s`)", project.Subdomain, baseDomain), 
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", project.Subdomain): fmt.Sprintf("%d", project.ContainerPort),
 	}
 	

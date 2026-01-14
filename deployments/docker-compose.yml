@@ -44,7 +44,7 @@ services:
     environment:
       # Connection String
       DB_DSN: "host=postgres user=postgres password=password dbname=multitenant port=5432 sslmode=disable TimeZone=Asia/Jakarta"
-      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}" # Default to localhost if not set
+      BASE_DOMAIN: "${BASE_DOMAIN:-damantine.web.id}" # Default to localhost if not set
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Backend needs to control Docker
     networks:

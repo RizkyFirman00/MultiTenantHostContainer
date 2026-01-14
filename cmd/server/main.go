@@ -16,31 +16,21 @@ import (
 )
 
 func main() {
-	// 1. Setup Database
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		dsn = "host=localhost user=postgres password=postgres dbname=multitenant port=5432 sslmode=disable TimeZone=Asia/Jakarta"
 	}
-	// Note: Pastikan DB postgres jalan. Jika belum, app akan panic/error.
-	// Untuk demo ini kita skip connection check fatal jika DB belum ada,
-	// atau kita mock jika user belum punya DB.
 	
 	var db *gorm.DB
 	var err error
-	
-	// Cek apakah mau run mode "Demo" tanpa DB riil?
-	// Untuk tesis, kita asumsikan user akan setup DB. Tapi biar script jalan, kita handle error.
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Printf("Warning: Failed to connect to database: %v. Running in Memory/Mock mode not implemented fully.", err)
-		// os.Exit(1)
 	} else {
-		// Auto Migrate
 		log.Println("Database connected. Running migrations...")
 		db.AutoMigrate(&domain.User{}, &domain.Project{}, &domain.EnvVar{}, &domain.Deployment{})
 	}
 
-	// 2. Setup Adapters
 	dockerClient, err := docker.NewDockerClient()
 	if err != nil {
 		log.Fatalf("Failed to init Docker client: %v", err)
@@ -48,11 +38,9 @@ func main() {
 
 	projectRepo := repository.NewGormProjectRepository(db)
 
-	// 3. Setup Services
-	authService := services.NewAuthService(db, "rahasia-negara-dont-use-in-prod") // TODO: use env VAR
+	authService := services.NewAuthService(db, "rahasia-negara-dont-use-in-prod")
 	projectService := services.NewProjectService(projectRepo, dockerClient)
 
-	// 4. Setup Router & Server
 	r := handler.NewRouter(authService, projectService)
 	
 	log.Println("Starting server on :8080")
@@ -65,10 +53,8 @@ func runDemo(svc *services.ProjectService) {
 	ctx := context.Background()
 	log.Println("--- Starting Demo Scenario ---")
 	
-	// Mock User ID
 	fakeUserID := uuid.New()
 	
-	// Create Project
 	log.Println("1. Creating Project Metadata...")
 	proj, err := svc.CreateProject(ctx, fakeUserID, "Demo App", "nginx:alpine", "demo-site", 80)
 	if err != nil {

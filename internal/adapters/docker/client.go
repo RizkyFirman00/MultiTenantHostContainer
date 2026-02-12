@@ -28,14 +28,22 @@ func NewDockerClient() (*DockerClient, error) {
 	return &DockerClient{cli: cli}, nil
 }
 
-// EnsureImage memastikan image tersedia (pull jika belum ada)
+// EnsureImage memastikan image tersedia (Cek lokal dulu, baru pull)
 func (d *DockerClient) EnsureImage(ctx context.Context, imageName string) error {
+	// 1. Cek apakah image sudah ada di local?
+	_, _, err := d.cli.ImageInspectWithRaw(ctx, imageName)
+	if err == nil {
+		// Image ada di local, skip pull
+		return nil
+	}
+
+	// 2. Jika tidak ada, coba Pull dari registry
 	reader, err := d.cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pull image %s: %w", imageName, err)
 	}
 	defer reader.Close()
-	// Discard output agar tidak memenuhi buffer, di real app bisa di stream ke logs
+	// Discard output agar tidak memenuhi buffer
 	io.Copy(os.Stdout, reader) 
 	return nil
 }

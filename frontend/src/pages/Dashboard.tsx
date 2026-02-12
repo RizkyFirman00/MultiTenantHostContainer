@@ -326,25 +326,48 @@ const Dashboard: React.FC = () => {
                       </>
                     ) : (
                       <>
+                        {project.Status === "created" ? (
+                          <Button
+                            variant="default" // Primary for initial deploy
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleAction(project.ID, "deploy")}
+                            disabled={actionLoading === project.ID}
+                          >
+                            {actionLoading === project.ID ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCcw className="h-4 w-4 mr-2" />
+                            )}
+                            Deploy
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="flex-1 text-green-500 hover:text-green-600"
+                            onClick={() => handleAction(project.ID, "start")}
+                            disabled={actionLoading === project.ID}
+                          >
+                            {actionLoading === project.ID ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Power className="h-4 w-4 mr-2" />
+                            )}
+                            Start
+                          </Button>
+                        )}
+
                         <Button
-                          variant="secondary"
                           size="sm"
-                          className="flex-1 text-green-500 hover:text-green-600"
-                          onClick={() => handleAction(project.ID, "start")}
-                          disabled={actionLoading === project.ID}
-                        >
-                          {actionLoading === project.ID ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Power className="h-4 w-4 mr-2" />
-                          )}
-                          Start
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="default" // Primary color for deploy if not running
+                          variant={
+                            project.Status === "created"
+                              ? "secondary"
+                              : "default"
+                          }
                           onClick={() => handleAction(project.ID, "deploy")}
                           disabled={actionLoading === project.ID}
+                          title="Redeploy / Update Image"
                         >
                           {actionLoading === project.ID ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

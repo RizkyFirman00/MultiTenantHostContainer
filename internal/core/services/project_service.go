@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
+	"regexp"
 
 	"github.com/damantine/multi-tenant-hosting/internal/core/domain"
 	"github.com/damantine/multi-tenant-hosting/internal/core/ports"
@@ -52,6 +52,16 @@ func (s *ProjectService) DeployProject(ctx context.Context, projectID uuid.UUID)
 		envs = append(envs, fmt.Sprintf("%s=%s", env.Key, env.Value))
 	}
 
+	// 2. Cleanup Existing Containers (if any, to avoid duplicates or name conflicts)
+	// Iterate deployments and attempt to remove old containers.
+	// In a production system, we might want to keep history, but for now we cleanup to keep resources tidy.
+	for _, d := range project.Deployments {
+		// Attempt stop (ignore error if not running)
+		_ = s.dockerRuntime.StopContainer(ctx, d.ContainerID)
+		// Attempt remove (ignore error if not found)
+		_ = s.dockerRuntime.RemoveContainer(ctx, d.ContainerID)
+	}
+
 	config := ports.ContainerConfig{
 		Name:   fmt.Sprintf("%s-%s", project.Subdomain, uuid.NewString()[:8]), // Uniq name
 		Image:  project.ImageName,
@@ -88,9 +98,12 @@ func (s *ProjectService) DeployProject(ctx context.Context, projectID uuid.UUID)
 
 // CreateProject hanya menyimpan metadata ke DB
 func (s *ProjectService) CreateProject(ctx context.Context, userID uuid.UUID, name, image, subdomain string, port int) (*domain.Project, error) {
-    if strings.Contains(subdomain, " ") {
-        return nil, fmt.Errorf("subdomain cannot contain spaces")
-    }
+	// Validate Subdomain (RFC 1123 compliant for DNS labels)
+	// Only lowercase alphanumeric and hyphens, cannot start or end with hyphen.
+	var subdomainRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+	if !subdomainRegex.MatchString(subdomain) {
+		return nil, fmt.Errorf("subdomain must consist of lowercase alphanumeric characters or hyphens, and cannot start or end with a hyphen")
+	}
 
 	project := &domain.Project{
 		UserID:        userID,
@@ -119,6 +132,13 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID uuid.UUID,
 	project, err := s.repo.GetByID(ctx, projectID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate Subdomain (RFC 1123 compliant for DNS labels)
+	// Only lowercase alphanumeric and hyphens, cannot start or end with hyphen.
+	var subdomainRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+	if !subdomainRegex.MatchString(subdomain) {
+		return nil, fmt.Errorf("subdomain must consist of lowercase alphanumeric characters or hyphens, and cannot start or end with a hyphen")
 	}
 
 	// Update fields
@@ -153,11 +173,10 @@ func (s *ProjectService) DeleteProject(ctx context.Context, projectID uuid.UUID)
     
     if len(project.Deployments) > 0 {
 		for _, d := range project.Deployments {
-			if d.Status == "running" {
-				// Try to stop and remove
-				_ = s.dockerRuntime.StopContainer(ctx, d.ContainerID)
-				_ = s.dockerRuntime.RemoveContainer(ctx, d.ContainerID)
-			}
+			// Always attempt to stop and remove, regardless of stored status.
+			// The container might be running even if DB says otherwise, or stopped but exists.
+			_ = s.dockerRuntime.StopContainer(ctx, d.ContainerID)
+			_ = s.dockerRuntime.RemoveContainer(ctx, d.ContainerID)
 		}
 	} else {
 		// Fallback cleanup try (best effort)

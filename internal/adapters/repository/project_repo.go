@@ -44,7 +44,21 @@ func (r *GormProjectRepository) Update(ctx context.Context, project *domain.Proj
 }
 
 func (r *GormProjectRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return r.db.WithContext(ctx).Delete(&domain.Project{}, "id = ?", id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Delete associated Deployments
+		if err := tx.Where("project_id = ?", id).Delete(&domain.Deployment{}).Error; err != nil {
+			return err
+		}
+		// 2. Delete associated EnvVars
+		if err := tx.Where("project_id = ?", id).Delete(&domain.EnvVar{}).Error; err != nil {
+			return err
+		}
+		// 3. Delete Project
+		if err := tx.Delete(&domain.Project{}, "id = ?", id).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *GormProjectRepository) SaveDeployment(ctx context.Context, deployment *domain.Deployment) error {

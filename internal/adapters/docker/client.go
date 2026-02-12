@@ -10,6 +10,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
@@ -98,4 +99,29 @@ func (d *DockerClient) InspectContainer(ctx context.Context, containerID string)
 		State: json.State.Status, // running, paused, etc
 		Status: json.State.Status,
 	}, nil
+}
+
+func (d *DockerClient) ListContainers(ctx context.Context, labels map[string]string) ([]ports.ContainerStatus, error) {
+	filterArgs := filters.NewArgs()
+	for k, v := range labels {
+		filterArgs.Add("label", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	containers, err := d.cli.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filterArgs,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var result []ports.ContainerStatus
+	for _, c := range containers {
+		result = append(result, ports.ContainerStatus{
+			ID:     c.ID,
+			State:  c.State,
+			Status: c.Status,
+		})
+	}
+	return result, nil
 }

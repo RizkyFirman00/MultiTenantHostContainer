@@ -44,6 +44,7 @@ func (s *ProjectService) DeployProject(ctx context.Context, projectID uuid.UUID)
 		"traefik.enable": "true",
 		fmt.Sprintf("traefik.http.routers.%s.rule", project.Subdomain): fmt.Sprintf("Host(`%s.%s`)", project.Subdomain, baseDomain), 
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", project.Subdomain): fmt.Sprintf("%d", project.ContainerPort),
+		"com.multitenant.project_id": project.ID.String(), // Label for robust cleanup
 	}
 	
 	// Convert EnvVars domain ke []string format "KEY=VALUE"
@@ -86,11 +87,19 @@ func (s *ProjectService) DeployProject(ctx context.Context, projectID uuid.UUID)
 		ContainerID: containerID,
 		Status:      "running",
 	}
-	// Di real app, simpan deployment ke DB via repo (belum diimplementasi di interface repo contoh ini)
-	// s.repo.SaveDeployment(deployment)
+	
+	if err := s.repo.SaveDeployment(ctx, deployment); err != nil {
+		// Log error but don't fail deployment completely? Or maybe fail?
+		// Better to fail or warn. For now let's just log print (since we don't have logger injected)
+		// and proceed to update project status.
+		fmt.Printf("Failed to save deployment history: %v\n", err)
+	}
 	
 	// Update status project
 	project.Status = "running"
+	// Also append to in-memory deployments to ensure immediate consistency if reused in same context (though context is usually per request)
+	project.Deployments = append(project.Deployments, *deployment)
+	
 	s.repo.Update(ctx, project)
 
 	return deployment, nil
@@ -178,13 +187,24 @@ func (s *ProjectService) DeleteProject(ctx context.Context, projectID uuid.UUID)
 			_ = s.dockerRuntime.StopContainer(ctx, d.ContainerID)
 			_ = s.dockerRuntime.RemoveContainer(ctx, d.ContainerID)
 		}
+	}
+	
+	// 3. Robust Cleanup: Find any wandering containers by label "com.multitenant.project_id"
+	// This handles cases where deployments are missing or not synced.
+	orphans, err := s.dockerRuntime.ListContainers(ctx, map[string]string{
+		"com.multitenant.project_id": project.ID.String(),
+	})
+	if err == nil {
+		for _, o := range orphans {
+			_ = s.dockerRuntime.StopContainer(ctx, o.ID)
+			_ = s.dockerRuntime.RemoveContainer(ctx, o.ID)
+		}
 	} else {
-		// Fallback cleanup try (best effort)
-		// Try to find container by name? Not implemented in runtime yet.
-		// Skip for now.
+	    // Log error technically but proceed to delete project
+	    fmt.Printf("Failed to list orphan containers: %v\n", err)
 	}
 
-	// 2. Remove from DB
+	// 4. Remove from DB
 	return s.repo.Delete(ctx, projectID)
 }
 
@@ -205,7 +225,13 @@ func (s *ProjectService) StartProject(ctx context.Context, projectID uuid.UUID) 
 	latestDeployment := project.Deployments[len(project.Deployments)-1]
 	
 	// Start container
-	return s.dockerRuntime.StartContainer(ctx, latestDeployment.ContainerID)
+	if err := s.dockerRuntime.StartContainer(ctx, latestDeployment.ContainerID); err != nil {
+		return err
+	}
+
+	// Update project status
+	project.Status = "running"
+	return s.repo.Update(ctx, project)
 }
 
 func (s *ProjectService) StopProject(ctx context.Context, projectID uuid.UUID) error {
@@ -219,5 +245,11 @@ func (s *ProjectService) StopProject(ctx context.Context, projectID uuid.UUID) e
 	}
 
 	latestDeployment := project.Deployments[len(project.Deployments)-1]
-	return s.dockerRuntime.StopContainer(ctx, latestDeployment.ContainerID)
+	if err := s.dockerRuntime.StopContainer(ctx, latestDeployment.ContainerID); err != nil {
+		return err
+	}
+
+	// Update project status
+	project.Status = "stopped"
+	return s.repo.Update(ctx, project)
 }

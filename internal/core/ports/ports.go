@@ -14,6 +14,7 @@ type ProjectRepository interface {
 	ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Project, error)
 	Update(ctx context.Context, project *domain.Project) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	SaveDeployment(ctx context.Context, deployment *domain.Deployment) error
 }
 
 // ContainerRuntime mendefinisikan interaksi dengan Docker Engine
@@ -34,6 +35,9 @@ type ContainerRuntime interface {
 	
 	// InspectContainer mendapatkan status terkini
 	InspectContainer(ctx context.Context, containerID string) (*ContainerStatus, error)
+
+	// ListContainers lists containers with optional filters
+	ListContainers(ctx context.Context, labels map[string]string) ([]ContainerStatus, error)
 }
 
 // ContainerConfig structDTO untuk parameter pembuatan container

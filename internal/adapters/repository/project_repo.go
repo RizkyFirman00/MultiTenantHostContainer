@@ -22,7 +22,10 @@ func (r *GormProjectRepository) Create(ctx context.Context, project *domain.Proj
 
 func (r *GormProjectRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
 	var p domain.Project
-	if err := r.db.WithContext(ctx).Preload("EnvVars").Preload("Deployments").First(&p, "id = ?", id).Error; err != nil {
+	// Preload deployments ordered by creation time so last one is latest
+	if err := r.db.WithContext(ctx).Preload("EnvVars").Preload("Deployments", func(db *gorm.DB) *gorm.DB {
+		return db.Order("deployed_at ASC")
+	}).First(&p, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
@@ -42,4 +45,8 @@ func (r *GormProjectRepository) Update(ctx context.Context, project *domain.Proj
 
 func (r *GormProjectRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&domain.Project{}, "id = ?", id).Error
+}
+
+func (r *GormProjectRepository) SaveDeployment(ctx context.Context, deployment *domain.Deployment) error {
+	return r.db.WithContext(ctx).Create(deployment).Error
 }

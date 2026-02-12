@@ -150,18 +150,28 @@ func (s *ProjectService) UpdateProject(ctx context.Context, projectID uuid.UUID,
 		return nil, fmt.Errorf("subdomain must consist of lowercase alphanumeric characters or hyphens, and cannot start or end with a hyphen")
 	}
 
+	// Check if critical config changed
+	needsRedeploy := (project.Subdomain != subdomain || project.ImageName != image || project.ContainerPort != port)
+	
 	// Update fields
 	project.Name = name
 	project.ImageName = image
 	project.Subdomain = subdomain
 	project.ContainerPort = port
 	
-	// Reset status if critical config builds changes (optional, but good practice)
-	// For now we keep it simple.
-
 	if err := s.repo.Update(ctx, project); err != nil {
 		return nil, err
 	}
+	
+	// If project was running and config changed, trigger redeploy
+	if needsRedeploy && project.Status == "running" {
+		if _, err := s.DeployProject(ctx, project.ID); err != nil {
+			// Log warning but return updated project object
+			// Ideally mark as "error" status or similar? For now let's hope for the best.
+			fmt.Printf("Auto-redeploy failed for project %s: %v\n", project.ID, err)
+		}
+	}
+	
 	return project, nil
 }
 

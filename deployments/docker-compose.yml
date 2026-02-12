@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 services:
   # 1. Reverse Proxy (Traefik)
@@ -48,8 +48,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Backend needs to control Docker
     networks:
-      - web-gateway # To communicate with Traefik
-      - backend-net # To communicate with DB
+      - web-gateway   # To communicate with Traefik
+      - backend-net   # To communicate with DB
     labels:
       - "traefik.enable=true"
       # Route for API (Matches /api prefix)
@@ -71,8 +71,8 @@ services:
       - web-gateway
     labels:
       - "traefik.enable=true"
-      # Route for Frontend (Root domain only)
-      - "traefik.http.routers.frontend-ui.rule=Host(`${BASE_DOMAIN:-damantine.web.id}`) || Host(`www.${BASE_DOMAIN:-damantine.web.id}`)"
+      # Route for Frontend (Catch-all for root)
+      - "traefik.http.routers.frontend-ui.rule=PathPrefix(`/`)"
       - "traefik.http.services.frontend-ui.loadbalancer.server.port=80"
       - "traefik.docker.network=traefik-net"
 

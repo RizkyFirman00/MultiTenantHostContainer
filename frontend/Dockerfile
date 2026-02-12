@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+ARG VITE_BASE_DOMAIN
+ENV VITE_BASE_DOMAIN=$VITE_BASE_DOMAIN
 RUN npm run build
 
 # Stage 2: Serve

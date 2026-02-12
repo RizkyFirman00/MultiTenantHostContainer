@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # 1. Reverse Proxy (Traefik)
@@ -48,8 +48,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Backend needs to control Docker
     networks:
-      - web-gateway   # To communicate with Traefik
-      - backend-net   # To communicate with DB
+      - web-gateway # To communicate with Traefik
+      - backend-net # To communicate with DB
     labels:
       - "traefik.enable=true"
       # Route for API (Matches /api prefix)
@@ -62,6 +62,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        VITE_BASE_DOMAIN: "${BASE_DOMAIN:-damantine.web.id}"
     container_name: frontend-ui
     restart: unless-stopped
     depends_on:

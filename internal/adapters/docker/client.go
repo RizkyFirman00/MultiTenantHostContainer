@@ -2,6 +2,8 @@ package docker
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
@@ -37,8 +40,24 @@ func (d *DockerClient) EnsureImage(ctx context.Context, imageName string) error 
 		return nil
 	}
 
-	// 2. Jika tidak ada, coba Pull dari registry
-	reader, err := d.cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+	// 2. Prepare authentication for Docker Hub (if credentials available)
+	pullOptions := types.ImagePullOptions{}
+	dockerUser := os.Getenv("DOCKER_HUB_USERNAME")
+	dockerPass := os.Getenv("DOCKER_HUB_PASSWORD")
+	
+	if dockerUser != "" && dockerPass != "" {
+		authConfig := registry.AuthConfig{
+			Username: dockerUser,
+			Password: dockerPass,
+		}
+		encodedJSON, err := json.Marshal(authConfig)
+		if err == nil {
+			pullOptions.RegistryAuth = base64.URLEncoding.EncodeToString(encodedJSON)
+		}
+	}
+
+	// 3. Pull dari registry (authenticated jika credentials tersedia)
+	reader, err := d.cli.ImagePull(ctx, imageName, pullOptions)
 	if err != nil {
 		return fmt.Errorf("failed to pull image %s: %w", imageName, err)
 	}
